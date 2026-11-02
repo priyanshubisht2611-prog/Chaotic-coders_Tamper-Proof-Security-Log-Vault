@@ -293,9 +293,9 @@ export const WindowDetailsPanel: React.FC = () => {
                     <span className="text-[10px] uppercase text-white/50">Previous Window Link:</span>
                     <div className="flex items-center space-x-1.5">
                       <span className="text-white/80 text-[10px] bg-black/40 px-1.5 py-0.5 rounded border border-white/5 font-mono">
-                        {selectedWindow.id === 1
+                        {selectedWindow.id <= 1
                           ? '0000000000000000... (GENESIS)'
-                          : `${(INITIAL_MOCK_LOGS.find((m) => m.id === selectedWindow.id - 1)?.hash || '').slice(0, 16)}...`}
+                          : `${(INITIAL_MOCK_LOGS.find((m) => m.id === selectedWindow.id - 1)?.hash || selectedWindow.hash || '0000000000000000').slice(0, 16)}...`}
                       </span>
                       {selectedWindow.id > 1 && (
                         <button

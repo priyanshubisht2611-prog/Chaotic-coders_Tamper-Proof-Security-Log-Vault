@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Zap, Trash2, RotateCcw, Loader2, Download, Shield } from 'lucide-react';
+import { CheckCircle2, Zap, Trash2, RotateCcw, Loader2, Download, Shield, Cloud, CloudOff, Wifi, WifiOff } from 'lucide-react';
 import {
   useVaultStore,
   generateAuditManifest,
@@ -20,6 +20,10 @@ export const ControlBar: React.FC = () => {
   const triggerModification = useVaultStore((s) => s.triggerModification);
   const simulateDeletion = useVaultStore((s) => s.simulateDeletion);
   const reset = useVaultStore((s) => s.reset);
+  const cloudSync = useVaultStore((s) => s.cloudSync);
+  const isSyncing = useVaultStore((s) => s.isSyncing);
+  const isBackendConnected = useVaultStore((s) => s.isBackendConnected);
+  const llmAvailable = useVaultStore((s) => s.llmAvailable);
 
   const tamperedCount = useVaultStore(selectTamperedCount);
   const missingCount = useVaultStore(selectMissingCount);
@@ -70,7 +74,13 @@ export const ControlBar: React.FC = () => {
     }
   }, []);
 
-  // Global keyboard shortcuts: V, A, D, R, E
+  const handleCloudSync = useCallback(() => {
+    if (!isSyncing && isBackendConnected) cloudSync();
+    else if (!isBackendConnected)
+      useVaultStore.getState().setToastMessage('Flask backend offline — cloud sync unavailable');
+  }, [isSyncing, isBackendConnected, cloudSync]);
+
+  // Global keyboard shortcuts: V, A, D, R, E, S
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Active only when no input is focused and the attack overlay is idle
@@ -105,6 +115,9 @@ export const ControlBar: React.FC = () => {
       } else if ((e.key === 'e' || e.key === 'E') && !e.shiftKey) {
         e.preventDefault();
         handleExport();
+      } else if ((e.key === 's' || e.key === 'S') && !e.shiftKey) {
+        e.preventDefault();
+        handleCloudSync();
       }
     };
 
@@ -119,6 +132,7 @@ export const ControlBar: React.FC = () => {
     handleDeletion,
     reset,
     handleExport,
+    handleCloudSync,
   ]);
 
   return (
@@ -206,6 +220,33 @@ export const ControlBar: React.FC = () => {
           <Kbd>R</Kbd>
         </motion.button>
 
+        {/* Cloud Sync [S] */}
+        <motion.button
+          type="button"
+          whileHover={!isSyncing ? { scale: 1.02 } : {}}
+          whileTap={!isSyncing ? { scale: 0.98 } : {}}
+          onClick={handleCloudSync}
+          disabled={isSyncing}
+          title={isBackendConnected ? 'Sync to cloud DB' : 'Backend offline'}
+          className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+            !isBackendConnected
+              ? 'opacity-40 cursor-not-allowed bg-white/5 text-white/50 border border-white/5'
+              : isSyncing
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 cursor-wait animate-pulse'
+                : 'bg-sky-600/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 hover:shadow-[0_0_20px_rgba(14,165,233,0.25)]'
+          }`}
+        >
+          {isSyncing ? (
+            <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
+          ) : isBackendConnected ? (
+            <Cloud className="w-4 h-4 text-sky-300" />
+          ) : (
+            <CloudOff className="w-4 h-4 text-white/30" />
+          )}
+          <span>Sync Cloud</span>
+          <Kbd>S</Kbd>
+        </motion.button>
+
         {/* Export Proof [E] */}
         <motion.button
           type="button"
@@ -222,10 +263,31 @@ export const ControlBar: React.FC = () => {
 
       {/* Right: Live Scan Status / Dynamic Audit Mode */}
       <div className="flex items-center space-x-3 text-xs font-mono">
-        <div className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/5 text-[10px] text-vault-muted uppercase tracking-wider">
-          <Shield className="w-3 h-3 text-[#2f6bff]" />
-          <span>Test Sandbox</span>
+        {/* Backend Connection Status */}
+        <div
+          className={`hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] uppercase tracking-wider transition-colors ${
+            isBackendConnected
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+          }`}
+        >
+          {isBackendConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+          <span>{isBackendConnected ? 'Live Backend' : 'Mock Mode'}</span>
         </div>
+
+        {/* LLM Status */}
+        {isBackendConnected && (
+          <div
+            className={`hidden xl:flex items-center space-x-1.5 px-2 py-1.5 rounded-lg border text-[10px] uppercase tracking-wider ${
+              llmAvailable
+                ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                : 'bg-white/5 border-white/5 text-white/30'
+            }`}
+          >
+            <Shield className="w-3 h-3" />
+            <span>{llmAvailable ? 'AI Online' : 'AI Offline'}</span>
+          </div>
+        )}
 
         {isScanning ? (
           <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm animate-pulse">

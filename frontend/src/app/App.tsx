@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Monitor } from 'lucide-react';
 import { Hero } from '@/features/hero/Hero';
 import { Timeline } from '@/features/timeline/Timeline';
@@ -9,6 +9,7 @@ import { CursorFollower } from '@/shared/ui/CursorFollower';
 import { useVaultStore } from '@/store/useVaultStore';
 
 export const App: React.FC = () => {
+  const [bypassMobileNotice, setBypassMobileNotice] = useState(false);
   const isAttackOverlayOpen = useVaultStore((s) => s.isAttackOverlayOpen);
   const setIsAttackOverlayOpen = useVaultStore((s) => s.setIsAttackOverlayOpen);
   const heroVideoPlaying = useVaultStore((s) => s.heroVideoPlaying);
@@ -68,24 +69,34 @@ export const App: React.FC = () => {
         duration={5000}
       />
 
-      {/* Below 1024px: Render only a centered notice */}
-      <div className="flex lg:hidden fixed inset-0 z-[9999] bg-[#070b14] items-center justify-center p-8 text-center">
-        <div className="max-w-md p-8 rounded-2xl bg-[#0d1527] border border-white/10 shadow-2xl">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#2f6bff]/20 border border-[#2f6bff]/40 flex items-center justify-center text-[#2f6bff]">
-            <Monitor className="w-7 h-7" />
+      {/* Below 1024px: Notice with 1-tap Proceed button for Mobile */}
+      {!bypassMobileNotice && (
+        <div className="flex lg:hidden fixed inset-0 z-[9999] bg-[#070b14] items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full p-8 rounded-2xl bg-[#0d1527] border border-white/10 shadow-2xl">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#2f6bff]/20 border border-[#2f6bff]/40 flex items-center justify-center text-[#2f6bff]">
+              <Monitor className="w-7 h-7" />
+            </div>
+            <h2 className="font-heading font-black text-xl text-white tracking-wide uppercase">
+              Sentinel Vault
+            </h2>
+            <p className="mt-2 text-xs text-vault-muted font-sans leading-relaxed">
+              Designed for desktop monitors, but you can proceed to enable phone push alerts, test the siren, and monitor the vault.
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setBypassMobileNotice(true)}
+                className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#2f6bff] to-[#1a4cd8] text-white font-heading font-bold text-sm tracking-wider uppercase shadow-lg shadow-[#2f6bff]/30 hover:opacity-90 active:scale-95 transition-all"
+              >
+                Proceed to Dashboard & Alerts →
+              </button>
+            </div>
           </div>
-          <h2 className="font-heading font-black text-xl text-white tracking-wide uppercase">
-            Best viewed on a desktop screen
-          </h2>
-          <p className="mt-3 text-sm text-vault-muted font-sans leading-relaxed">
-            This cryptographic ledger dashboard is designed for desktop monitors (1280px – 2560px).
-            Please expand your browser or access on a desktop screen.
-          </p>
         </div>
-      </div>
+      )}
 
-      {/* Desktop App (>= 1024px) */}
-      <div className="hidden lg:flex min-h-screen bg-[#070b14] text-white flex-col font-sans selection:bg-[#2f6bff] selection:text-white">
+      {/* Main Dashboard (Responsive) */}
+      <div className={bypassMobileNotice ? "flex min-h-screen bg-[#070b14] text-white flex-col font-sans selection:bg-[#2f6bff] selection:text-white w-full overflow-x-auto" : "hidden lg:flex min-h-screen bg-[#070b14] text-white flex-col font-sans selection:bg-[#2f6bff] selection:text-white"}>
         {/* Attack Overlay - Mounted once, fixed above everything */}
         <AttackOverlay
           isOpen={isAttackOverlayOpen}

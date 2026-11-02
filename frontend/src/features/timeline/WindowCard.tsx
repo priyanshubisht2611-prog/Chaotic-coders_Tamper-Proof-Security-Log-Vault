@@ -162,7 +162,7 @@ const WindowCardComponent: React.FC<WindowCardProps> = ({
             <div className="space-y-1 font-mono text-[11px]">
               <div>
                 <span className="text-white/40 block text-[9px] uppercase">Hash Prefix:</span>
-                <span className="text-white break-all">{logWindow.hash.slice(0, 16)}...</span>
+                <span className="text-white break-all">{(logWindow.hash || '----------------').slice(0, 16)}...</span>
               </div>
               <div>
                 <span className="text-white/40 block text-[9px] uppercase">Anchored At:</span>

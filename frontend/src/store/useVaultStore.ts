@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { LogWindow } from '@/types/log';
 import { LogRepository } from '@/services/logRepository';
 import { defaultLogRepository } from '@/services/mockLogRepository';
+import { apiLogRepository, ApiLogRepository } from '@/services/apiLogRepository';
+import { fetchLlmStatus } from '@/services/apiClient';
 
 const SESSION_STORAGE_KEY = 'vault_villain_played';
 
@@ -34,6 +36,32 @@ export interface VaultEvent {
   type: 'info' | 'warning' | 'error' | 'success';
 }
 
+export interface UserThreatScore {
+  user: string;
+  score: number;
+  level: 'LOW' | 'MEDIUM' | 'HIGH';
+  events: number;
+  top_event: string | null;
+}
+
+export const BASELINE_USER_SCORES: UserThreatScore[] = [
+  { user: 'alice', score: 10, level: 'LOW', events: 1, top_event: 'AUTH_SUCCESS' },
+  { user: 'bob', score: 15, level: 'LOW', events: 1, top_event: 'FILE_ACCESS' },
+  { user: 'carol', score: 10, level: 'LOW', events: 1, top_event: 'AUTH_SUCCESS' },
+  { user: 'dave_admin', score: 20, level: 'LOW', events: 1, top_event: 'SESSION_START' },
+  { user: 'eva', score: 15, level: 'LOW', events: 1, top_event: 'FILE_ACCESS' },
+  { user: 'mallory', score: 5, level: 'LOW', events: 1, top_event: 'HEARTBEAT' },
+];
+
+export const ATTACK_COMPROMISED_USER_SCORES: UserThreatScore[] = [
+  { user: 'mallory', score: 120, level: 'HIGH', events: 5, top_event: 'PRIVILEGE_ESCALATION' },
+  { user: 'alice', score: 90, level: 'HIGH', events: 4, top_event: 'PERMISSION_CHANGE' },
+  { user: 'carol', score: 75, level: 'HIGH', events: 3, top_event: 'FILE_MODIFIED' },
+  { user: 'eva', score: 30, level: 'MEDIUM', events: 1, top_event: 'PERMISSION_CHANGE' },
+  { user: 'bob', score: 20, level: 'LOW', events: 1, top_event: 'AUTH_SUCCESS' },
+  { user: 'dave_admin', score: 20, level: 'LOW', events: 1, top_event: 'FILE_ACCESS' },
+];
+
 const formatEventTime = (): string => {
   const now = new Date();
   return now.toTimeString().split(' ')[0]; // HH:mm:ss
@@ -55,6 +83,11 @@ export interface VaultState {
   cardGlitchId: number | null;
   toastMessage: string | null;
 
+  // Backend connectivity
+  isBackendConnected: boolean;
+  llmAvailable: boolean;
+  isSyncing: boolean;
+
   // Verification & Events (Phase 4)
   events: VaultEvent[];
   isScanning: boolean;
@@ -63,6 +96,12 @@ export interface VaultState {
   // Filtering & Search
   statusFilter: 'all' | 'intact' | 'tampered' | 'missing';
   windowSearchQuery: string;
+
+  // Insider Threat Behavioral Scoring
+  userScores: UserThreatScore[];
+  isUserScoresOpen: boolean;
+  setIsUserScoresOpen: (open: boolean) => void;
+  fetchUserScores: (isCompromised?: boolean) => Promise<void>;
 
   // Safeguard & Confirmation
   pendingSimulationAction: 'tamper' | 'delete' | null;
@@ -92,6 +131,8 @@ export interface VaultState {
   verifyAll: () => Promise<void>;
   reset: () => Promise<void>;
   fullReset: () => Promise<void>;
+  cloudSync: () => Promise<void>;
+  initBackendConnection: () => Promise<void>;
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -110,6 +151,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   cardGlitchId: null,
   toastMessage: null,
 
+  isBackendConnected: false,
+  llmAvailable: false,
+  isSyncing: false,
+
   events: [
     {
       id: 'init-1',
@@ -123,6 +168,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   statusFilter: 'all',
   windowSearchQuery: '',
+  userScores: BASELINE_USER_SCORES,
+  isUserScoresOpen: true,
+  setIsUserScoresOpen: (open) => set({ isUserScoresOpen: open }),
   pendingSimulationAction: null,
   skipSimulationConfirm: false,
 
@@ -318,6 +366,16 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         windows: state.windows.map((w) => (w.id === id ? tampered : w)),
         loading: false,
       }));
+      // Dynamically update threat scoring to reflect active intrusion
+      await get().fetchUserScores(true);
+      // Dispatch breach push notification via backend
+      if (get().isBackendConnected) {
+        fetch('/api/breach-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ window_id: id, kind: 'tamper' }),
+        }).catch(() => {});
+      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to tamper', loading: false });
     }
@@ -335,6 +393,16 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         ),
         loading: false,
       }));
+      // Dynamically update threat scoring to reflect active anomaly
+      await get().fetchUserScores(true);
+      // Dispatch breach push notification via backend
+      if (get().isBackendConnected) {
+        fetch('/api/breach-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ window_id: id, kind: 'delete' }),
+        }).catch(() => {});
+      }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to delete', loading: false });
     }
@@ -358,6 +426,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       get().addEvent('Demo reset: all windows restored to intact', 'info');
       set({
         windows,
+        userScores: BASELINE_USER_SCORES,
         loading: false,
         selectedId: null,
         hoveredId: null,
@@ -383,6 +452,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       get().addEvent('Full Reset complete: cinematic sequence re-enabled', 'info');
       set({
         windows,
+        userScores: BASELINE_USER_SCORES,
         loading: false,
         selectedId: null,
         hoveredId: null,
@@ -397,6 +467,112 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Failed to reset', loading: false });
+    }
+  },
+
+  cloudSync: async () => {
+    const { isSyncing, isBackendConnected, addEvent, setToastMessage } = get();
+    if (isSyncing || !isBackendConnected) {
+      setToastMessage(
+        isBackendConnected
+          ? 'Cloud sync already in progress'
+          : 'Backend offline — cloud sync unavailable',
+      );
+      return;
+    }
+    set({ isSyncing: true });
+    addEvent('Cloud sync initiated…', 'info');
+    try {
+      const result = await (apiLogRepository as ApiLogRepository).cloudSync();
+      addEvent(`Cloud sync complete: ${result.synced_count} window(s) backed up`, 'success');
+      setToastMessage(result.message);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Cloud sync failed';
+      addEvent(msg, 'error');
+      setToastMessage(msg);
+    } finally {
+      set({ isSyncing: false });
+    }
+  },
+
+  fetchUserScores: async (isCompromised?: boolean) => {
+    const hasBreach = isCompromised || get().windows.some((w) => w.status !== 'intact');
+    if (!hasBreach) {
+      set({ userScores: BASELINE_USER_SCORES });
+      return;
+    }
+
+    try {
+      const { fetchUserScores: apiFetchUserScores } = await import('@/services/apiClient');
+      const raw = await apiFetchUserScores();
+      const mapped: UserThreatScore[] = Object.entries(raw).map(([user, data]) => {
+        const d = data as any;
+        const score = typeof d === 'object' && d !== null ? Number(d.score) || 0 : Number(d) || 0;
+        let level: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
+        if (typeof d === 'object' && d !== null && d.level) {
+          level = d.level;
+        } else if (score >= 50) {
+          level = 'HIGH';
+        } else if (score >= 25) {
+          level = 'MEDIUM';
+        }
+        return {
+          user,
+          score,
+          level,
+          events: typeof d === 'object' && d !== null ? Number(d.events) || 1 : 1,
+          top_event: typeof d === 'object' && d !== null && d.top_event ? d.top_event : 'SUSPICIOUS_ACTIVITY',
+        };
+      });
+      mapped.sort((a, b) => b.score - a.score);
+      set({ userScores: mapped.length > 0 ? mapped : ATTACK_COMPROMISED_USER_SCORES });
+    } catch {
+      set({ userScores: ATTACK_COMPROMISED_USER_SCORES });
+    }
+  },
+
+  initBackendConnection: async () => {
+    /**
+     * Probe the Flask backend. If reachable:
+     *  - swap repository to the real ApiLogRepository
+     *  - check LLM availability
+     *  - fetch real window data
+     *  - fetch real user behavior scores
+     *  - set isBackendConnected = true
+     *
+     * If not reachable, silently keep the mock repository.
+     */
+    try {
+      // Quick probe — will throw on network error or non-200
+      const { fetchStatus } = await import('@/services/apiClient');
+      await fetchStatus();
+
+      // Backend is up — switch to real repository
+      set({ repository: apiLogRepository, isBackendConnected: true });
+      get().addEvent('Flask backend connected — live data active', 'success');
+
+      // Check LLM
+      try {
+        const llm = await fetchLlmStatus();
+        set({ llmAvailable: llm.available });
+        if (llm.available) {
+          get().addEvent(`Local AI online: ${llm.model ?? 'unknown model'}`, 'info');
+        }
+      } catch {
+        set({ llmAvailable: false });
+      }
+
+      // Fetch live windows & user behavior threat scores
+      await get().fetchWindows();
+      await get().fetchUserScores();
+    } catch {
+      // Backend offline — stay with mock
+      set({ isBackendConnected: false });
+      get().addEvent('Backend offline — running in demo/mock mode', 'warning');
+      // Still load mock windows so UI isn't empty
+      if (get().windows.length === 0) {
+        await get().fetchWindows();
+      }
     }
   },
 }));

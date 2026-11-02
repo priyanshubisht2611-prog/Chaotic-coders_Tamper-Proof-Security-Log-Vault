@@ -9,6 +9,8 @@ import { WindowDetailsPanel } from './WindowDetailsPanel';
 import { ControlBar } from '@/features/verification/ControlBar';
 import { ScanBeam } from '@/features/verification/ScanBeam';
 import { EventFeed } from '@/features/verification/EventFeed';
+import { ThreatScoringAlert } from '@/features/verification/ThreatScoringAlert';
+import { NotificationPanel } from '@/features/notifications/NotificationPanel';
 
 export const Timeline: React.FC = () => {
   const windows = useVaultStore((s) => s.windows);
@@ -86,6 +88,9 @@ export const Timeline: React.FC = () => {
             <TimelineSkeleton />
           ) : (
             <>
+              {/* Behavioral Anomaly & Threat Scoring Alert (Pillar 4) */}
+              <ThreatScoringAlert />
+
               {/* Summary Counters: Row of 3 Wide Cards */}
               <SummaryCounters />
 
@@ -99,10 +104,11 @@ export const Timeline: React.FC = () => {
           )}
         </div>
 
-        {/* Right 4 Columns: Docked Details Panel + EventFeed */}
+        {/* Right 4 Columns: Docked Details Panel + EventFeed + Notification Panel */}
         <div className="col-span-4 sticky top-[72px] self-start space-y-5">
           <WindowDetailsPanel />
           <EventFeed />
+          <NotificationPanel />
         </div>
       </div>
     </section>
