@@ -33,7 +33,7 @@ venv/
 env/
 ENV/
 
-# Databases, Binaries & Local State
+# Databases, Binaries & Local State Files
 *.db
 *.sqlite
 *.sqlite3
@@ -47,6 +47,7 @@ hash_state.json
 hash_chain.json
 pending_approvals.json
 fcm_tokens.json
+*.pdf
 
 # Environment and secrets
 .env

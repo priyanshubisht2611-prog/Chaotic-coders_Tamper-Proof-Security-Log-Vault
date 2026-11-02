@@ -130,13 +130,16 @@ def _dispatch_fcm(title: str, body: str, data: dict, tag: str = 'sentinel-alert'
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
+REPO_ROOT = os.path.dirname(BASE_DIR)
+FRONTEND_DIST = os.path.join(REPO_ROOT, "frontend", "dist")
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 
 app = Flask(
     __name__,
     # In production Flask also serves the built React app
     static_folder=FRONTEND_DIST,
     static_url_path="",
+    template_folder=TEMPLATES_DIR,
 )
 
 # ── CORS (needed when Vite dev server calls Flask directly) ────────────────────
