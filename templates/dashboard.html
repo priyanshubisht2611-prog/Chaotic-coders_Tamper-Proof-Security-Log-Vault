@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentinel Vault</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111117;
+    --border: #262630;
+    --border-strong: #3a3a47;
+    --text: #f4f4f6;
+    --text-muted: #9a9aa6;
+    --text-faint: #65656f;
+    --web: #ffffff;
+    --accent: #e8232a;
+    --accent-dim: #7a1218;
+    --green: #4ade80;
+    --green-bg: #0d2415;
+    --green-border: #164d29;
+    --red: #ff5c5c;
+    --red-bg: #2a0e0e;
+    --red-border: #6b1414;
+    --grey-bg: #1a1a21;
+    --amber: #fbbf24;
+    --amber-bg: #2a2109;
+    --amber-border: #5c4709;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Decorative animated spider-web, drawn with SVG line segments,
+     anchored to the top-right corner. Pure geometry, no character art. */
+  .web-corner {
+    position: fixed;
+    top: -40px;
+    right: -40px;
+    width: 420px;
+    height: 420px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.35;
+  }
+  .web-corner svg { width: 100%; height: 100%; }
+  .web-corner .strand {
+    fill: none;
+    stroke: var(--web);
+    stroke-width: 1;
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    animation: spin-strand 2.2s ease-out forwards;
+  }
+  .web-corner .ring {
+    fill: none;
+    stroke: var(--web);
+    stroke-width: 0.8;
+    opacity: 0.7;
+    stroke-dasharray: 900;
+    stroke-dashoffset: 900;
+    animation: spin-strand 2.6s ease-out forwards;
+  }
+  @keyframes spin-strand {
+    to { stroke-dashoffset: 0; }
+  }
+
+  .corner-bl {
+    position: fixed;
+    bottom: -60px;
+    left: -60px;
+    width: 300px;
+    height: 300px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.18;
+  }
+  .corner-bl svg { width: 100%; height: 100%; }
+
+  .shell {
+    position: relative;
+    z-index: 1;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+    position: relative;
+  }
+  .masthead::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent 60%);
+  }
+  .masthead h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .masthead .proj {
+    color: var(--text-faint);
+    font-weight: 400;
+  }
+  .masthead .meta {
+    font-size: 11px;
+    color: var(--accent);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--accent-dim);
+    padding: 3px 9px;
+    border-radius: 4px;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 28px;
+    background: var(--surface);
+  }
+  .stat {
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+  }
+  .stat:last-child { border-right: none; }
+  .stat .n {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .stat .l {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .stat.c-intact .n { color: var(--green); }
+  .stat.c-tampered .n { color: var(--red); }
+  .stat.c-missing .n { color: var(--text-muted); }
+  .stat.c-notchain .n { color: var(--amber); }
+
+  .notice {
+    font-size: 12.5px;
+    color: var(--amber);
+    background: var(--amber-bg);
+    border: 1px solid var(--amber-border);
+    border-radius: 6px;
+    padding: 9px 13px;
+    margin-bottom: 20px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+
+  .list {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 56px 100px 56px 1fr 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    position: relative;
+    overflow: hidden;
+  }
+  .row.has-summary {
+    grid-template-rows: auto auto;
+  }
+  .row:last-child { border-bottom: none; }
+
+  /* When a window flips to TAMPERED, it gets "caught" in a web: a faint
+     web pattern fills the row behind the content, plus a quick snap. */
+  .row.is-tampered {
+    background:
+      radial-gradient(circle at 100% 50%, rgba(232,35,42,0.10), transparent 70%);
+  }
+  .row.is-tampered::before {
+    content: "";
+    position: absolute;
+    top: -40%; right: -10%;
+    width: 180px; height: 220%;
+    opacity: 0.22;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%23e8232a' stroke-width='1.1'%3E%3Cline x1='180' y1='100' x2='20' y2='100'/%3E%3Cline x1='180' y1='100' x2='40' y2='30'/%3E%3Cline x1='180' y1='100' x2='100' y2='5'/%3E%3Cline x1='180' y1='100' x2='160' y2='5'/%3E%3Cline x1='180' y1='100' x2='40' y2='170'/%3E%3Cline x1='180' y1='100' x2='100' y2='195'/%3E%3Cline x1='180' y1='100' x2='160' y2='195'/%3E%3Cpath d='M60 55 C100 65,120 85,130 100' /%3E%3Cpath d='M45 100 C85 95,115 95,150 100' /%3E%3Cpath d='M60 145 C100 135,120 115,130 100' /%3E%3C/g%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    pointer-events: none;
+    animation: web-settle 0.5s ease-out;
+  }
+  @keyframes web-settle {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 0.22; transform: scale(1); }
+  }
+  .row.just-tampered {
+    animation: snap 0.35s ease-in-out;
+  }
+  @keyframes snap {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(1px); }
+  }
+  .row.head {
+    background: var(--grey-bg);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-faint);
+    padding: 8px 16px;
+  }
+  .wid {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-muted);
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    width: fit-content;
+  }
+  .badge-INTACT { color: var(--green); background: var(--green-bg); border-color: var(--green-border); }
+  .badge-TAMPERED { color: var(--red); background: var(--red-bg); border-color: var(--red-border); }
+  .badge-MISSING { color: var(--text-muted); background: var(--grey-bg); border-color: var(--border-strong); }
+  .badge-NOT_ON_CHAIN { color: var(--amber); background: var(--amber-bg); border-color: var(--amber-border); }
+
+  .hashval {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+  .lines { color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; }
+
+  .foot {
+    margin-top: 18px;
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+  .foot code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--grey-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .empty-state {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+
+  .ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-faint);
+    margin-left: 10px;
+  }
+  .ai-badge .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .ai-badge.online { color: var(--green); border-color: var(--green-border); }
+  .ai-badge.online .dot { background: var(--green); }
+  .ai-badge.offline { color: var(--amber); border-color: var(--amber-border); }
+  .ai-badge.offline .dot { background: var(--amber); }
+
+  .summary-line {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 2px 0 6px 72px;
+    line-height: 1.5;
+    border-top: 1px dashed var(--border);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .summary-line .tag {
+    color: var(--accent);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="web-corner">
+  <svg viewBox="0 0 400 400">
+    <!-- radiating strands -->
+    <line class="strand" x1="400" y1="400" x2="0"   y2="400" style="animation-delay:.0s"/>
+    <line class="strand" x1="400" y1="400" x2="60"  y2="320" style="animation-delay:.05s"/>
+    <line class="strand" x1="400" y1="400" x2="140" y2="220" style="animation-delay:.1s"/>
+    <line class="strand" x1="400" y1="400" x2="230" y2="130" style="animation-delay:.15s"/>
+    <line class="strand" x1="400" y1="400" x2="330" y2="60"  style="animation-delay:.2s"/>
+    <line class="strand" x1="400" y1="400" x2="400" y2="0"   style="animation-delay:.25s"/>
+    <!-- concentric web rings connecting the strands -->
+    <path class="ring" d="M 400 320 C 340 330, 330 340, 320 400" style="animation-delay:.3s"/>
+    <path class="ring" d="M 400 240 C 300 255, 255 300, 240 400" style="animation-delay:.4s"/>
+    <path class="ring" d="M 400 160 C 260 180, 180 260, 160 400" style="animation-delay:.5s"/>
+    <path class="ring" d="M 400 80  C 220 105, 105 220, 80 400"  style="animation-delay:.6s"/>
+    <path class="ring" d="M 400 0   C 180 30,  30 180, 0 400"    style="animation-delay:.7s"/>
+  </svg>
+</div>
+
+<div class="corner-bl">
+  <svg viewBox="0 0 300 300">
+    <line class="strand" x1="0" y1="0" x2="300" y2="0"   style="animation-delay:.1s"/>
+    <line class="strand" x1="0" y1="0" x2="220" y2="90"  style="animation-delay:.2s"/>
+    <line class="strand" x1="0" y1="0" x2="110" y2="190" style="animation-delay:.3s"/>
+    <line class="strand" x1="0" y1="0" x2="0"   y2="300" style="animation-delay:.4s"/>
+    <path class="ring" d="M 0 80  C 70 90, 90 70, 80 0"   style="animation-delay:.5s"/>
+    <path class="ring" d="M 0 170 C 120 185, 185 120, 170 0" style="animation-delay:.6s"/>
+    <path class="ring" d="M 0 260 C 160 280, 280 160, 260 0" style="animation-delay:.7s"/>
+  </svg>
+</div>
+
+<div class="shell">
+
+  <div class="masthead">
+    <h1>Sentinel Vault <span class="proj">— Tamper-Proof Security Log Vault & War Room</span></h1>
+    <div><span class="meta">GRAPHITE 26 · PS 9</span><span class="ai-badge" id="ai-badge"><span class="dot"></span><span id="ai-badge-text">Checking AI...</span></span></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-danger" onclick="simulateAttack()">⚡ Simulate Tamper Attack</button>
+    <button class="btn btn-danger" onclick="simulateDelete()">🗑️ Simulate Window Deletion</button>
+    <button class="btn" style="background: #1e3a8a; color: #fff;" onclick="syncCloud()">☁️ Sync to Cloud DB</button>
+    <button class="btn" onclick="refreshAll()">🔄 Refresh Status</button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat c-intact">
+      <div class="n" id="count-intact">0</div>
+      <div class="l">Intact</div>
+    </div>
+    <div class="stat c-tampered">
+      <div class="n" id="count-tampered">0</div>
+      <div class="l">Tampered</div>
+    </div>
+    <div class="stat c-missing">
+      <div class="n" id="count-missing">0</div>
+      <div class="l">Missing</div>
+    </div>
+    <div class="stat c-notchain">
+      <div class="n" id="count-notchain">0</div>
+      <div class="l">Not on chain</div>
+    </div>
+  </div>
+
+  <div id="warning"></div>
+
+  <div class="section-label">Anchored windows</div>
+  <div class="list">
+    <div class="row head">
+      <div>Window</div>
+      <div>Status</div>
+      <div>Lines</div>
+      <div>On-chain hash</div>
+      <div>Recomputed hash</div>
+    </div>
+    <div id="window-rows"></div>
+  </div>
+
+  <div class="foot">Live from <code>/api/status</code>, refreshed every 5s.</div>
+
+</div>
+
+<script>
+function shortHash(h) {
+  if (!h) return "—";
+  return h.substring(0, 18) + "…";
+}
+
+let previouslyTampered = new Set();
+
+async function refreshAiBadge() {
+  try {
+    const res = await fetch("/api/llm-status");
+    const data = await res.json();
+    const badge = document.getElementById("ai-badge");
+    const text = document.getElementById("ai-badge-text");
+    if (data.available) {
+      badge.className = "ai-badge online";
+      text.textContent = `Local AI: ${data.model}`;
+    } else {
+      badge.className = "ai-badge offline";
+      text.textContent = "Local AI: Offline (fallback text)";
+    }
+  } catch (e) {
+    // dashboard still works fine without this badge
+  }
+}
+
+async function refresh() {
+  const res = await fetch("/api/status");
+  const data = await res.json();
+
+  document.getElementById("count-intact").textContent = data.summary.intact;
+  document.getElementById("count-tampered").textContent = data.summary.tampered;
+  document.getElementById("count-missing").textContent = data.summary.missing;
+  document.getElementById("count-notchain").textContent = data.summary.not_on_chain;
+
+  const warningEl = document.getElementById("warning");
+  warningEl.innerHTML = data.warning ? `<div class="notice">${data.warning}</div>` : "";
+
+  const rowsEl = document.getElementById("window-rows");
+  if (!data.windows.length) {
+    rowsEl.innerHTML = `<div class="empty-state">No windows yet</div>`;
+    return;
+  }
+
+  const currentlyTampered = new Set(data.windows.filter(w => w.status === "TAMPERED").map(w => w.window_id));
+
+  rowsEl.innerHTML = data.windows.map(w => {
+    const isTampered = w.status === "TAMPERED";
+    const isNew = isTampered && !previouslyTampered.has(w.window_id);
+    const hasSummary = !!w.incident_summary;
+    const rowClass = ["row", isTampered ? "is-tampered" : "", isNew ? "just-tampered" : "", hasSummary ? "has-summary" : ""].filter(Boolean).join(" ");
+    const summaryHtml = hasSummary
+      ? `<div class="summary-line"><span class="tag">Local AI</span>${w.incident_summary}</div>`
+      : "";
+    return `
+    <div class="${rowClass}">
+      <div class="wid">#${w.window_id}</div>
+      <div><span class="badge badge-${w.status}">${w.status.replace("_", " ")}</span></div>
+      <div class="lines">${w.num_lines ?? "—"}</div>
+      <div class="hashval">${shortHash(w.onchain_hash)}</div>
+      <div class="hashval">${shortHash(w.recomputed_hash)}</div>
+      ${summaryHtml}
+    </div>`;
+  }).join("");
+
+  previouslyTampered = currentlyTampered;
+}
+
+async function simulateAttack() {
+  try {
+    const res = await fetch("/api/simulate-attack", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": "sk_demo_sec_999"
+      }
+    });
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      if (data.success) {
+        alert("Attack simulated successfully! Window #" + data.window_id + " tampered.");
+        refresh();
+      } else {
+        alert("Simulation failed: " + (data.message || data.error || "Unknown error"));
+      }
+    } else {
+      const text = await res.text();
+      alert("Server error (" + res.status + "): " + text.substring(0, 100));
+    }
+  } catch (e) {
+    alert("Error connecting to server: " + e);
+  }
+}
+
+async function simulateDelete() {
+  alert("Window deletion simulation is recorded via security audit logs. Use CLI/API key for direct simulated deletion.");
+}
+
+async function syncCloud() {
+  try {
+    const res = await fetch("/api/cloud-sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": "sk_demo_sec_999"
+      }
+    });
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        refresh();
+      } else {
+        alert("Cloud sync failed: " + (data.error || "Unauthorized"));
+      }
+    } else {
+      const text = await res.text();
+      alert("Server error (" + res.status + "): " + text.substring(0, 100));
+    }
+  } catch (e) {
+    alert("Error connecting to cloud backend: " + e);
+  }
+}
+
+function refreshAll() {
+  refresh();
+  refreshAiBadge();
+}
+
+refresh();
+refreshAiBadge();
+setInterval(refresh, 5000);
+setInterval(refreshAiBadge, 10000);
+</script>
+
+</body>
+</html>
