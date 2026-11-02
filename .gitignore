@@ -16,11 +16,46 @@ tsconfig.tsbuildinfo
 .eslintcache
 *.log
 *.tmp
+.pytest_cache/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Blockchain & Hardhat
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain/
+blockchain/typechain-types/
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Databases, Binaries & Local State
+*.db
+*.sqlite
+*.sqlite3
+cloudflared.exe
+*.exe
+tunnel.log
+tunnel_url.txt
+logs.txt
+audit_log.jsonl
+hash_state.json
+hash_chain.json
+pending_approvals.json
+fcm_tokens.json
 
 # Environment and secrets
 .env
 .env.*
 !.env.example
+firebase-service-account.json
+api_keys.json
+*.pem
+*.key
 
 # OS & Editor files
 .DS_Store
